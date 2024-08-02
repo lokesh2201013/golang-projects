@@ -11,13 +11,6 @@ import (
 	"bufio"
 )
 
-type User struct{
-	Uid string
-	Gid string
-	Username string
-	Name string
-	HomeDir string
-}
 //Function to check errors
 func checkerr(err error){
 if err!=nil{
@@ -147,14 +140,8 @@ func parseFileLinesToSlice(filepath string)[]string{
 
 //opens file at filepath crreats if not exixting
 func openFile(filepath string) *os.File{
-	f,err:=os.OpenFile(filepath,os.O_APPEND|os.O_WRONLY,0755)
-
-	if err!=nil{
-       if os.IsNotExist(err){
-		_,err=os.Create(filepath)
-		scheckerr(err)
-	   }
-	}
+	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0755)
+	checkerr(err)
 	return f
 }
 
