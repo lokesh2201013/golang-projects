@@ -1,14 +1,20 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
-	"io"
 	"os/user"
+	"path/filepath"
 	"strings"
-	"bufio"
+	"time"
+
+	"golang.org/x/text/date"
+	"gopkg.in/src-d/go-git.v4"
+	"gopkg.in/src-d/go-git.v4/plumbing/object"
 )
 
 //Function to check errors
@@ -66,7 +72,7 @@ func recursiveScanFolder(folder string)[]string{
 return scanGitFolders(make([]string,0),folder)
 }
 
-	func scan(folder string) {
+func scan(folder string) {
 		fmt.Printf("Found folders:\n\n")
 		repo:=recursiveScanFolder(folder)
 		filePath:=getDotFilePath()
@@ -75,7 +81,7 @@ return scanGitFolders(make([]string,0),folder)
 	
 	}
 
-	func joinSlices(new []string, existing []string) []string {
+func joinSlices(new []string, existing []string) []string {
 		for _, i := range new {
 			if !sliceContains(existing, i) {
 				existing = append(existing, i)
@@ -85,7 +91,7 @@ return scanGitFolders(make([]string,0),folder)
 	}
 	
 	// sliceContains returns true if `slice` contains `value`
-	func sliceContains(slice []string, value string) bool {
+func sliceContains(slice []string, value string) bool {
 		for _, v := range slice {
 			if v == value {
 				return true
@@ -93,6 +99,8 @@ return scanGitFolders(make([]string,0),folder)
 		}
 		return false
 	}
+
+
 
 //Returns DotFile for repo list
 func getDotFilePath()string{
@@ -138,7 +146,7 @@ func parseFileLinesToSlice(filepath string)[]string{
 	 return lines
 }
 
-//opens file at filepath crreats if not exixting
+//opens file at filepath creats if not existing
 func openFile(filepath string) *os.File{
 	f, err := os.OpenFile(filepath, os.O_APPEND|os.O_RDWR|os.O_CREATE, 0755)
 	checkerr(err)
@@ -146,11 +154,147 @@ func openFile(filepath string) *os.File{
 }
 
 
-
+//
 func stats(email string) {
-	print("STATS")
+	commits:=processRepo(email)
+	printCommitStats(commits)
 }
 
+
+//gets the filepath fills commits maps
+func processRepo(email string)map[int]int{
+	//gets filepath to /.gogitlocalstats
+	filepath:=getDotFilePath()
+	
+	repos:=parseFileLinesToSlice(filepath)
+	daysInMap:=daysInLastSixMonths
+
+	commits:=make(map[int]int,daysInMap)
+
+	//initialises map with each commit for days eqauls to 0
+	for i:=daysInMap ; i>0;i++{
+		commits[i]=0
+	}
+
+	//fils commits
+	for_,path:= range repos{
+		commits=fillCommits(email,path,commits)
+	}
+	return commits
+}
+
+
+//
+func fillCommits(email string,path string ,commits map[int]int)map[int]int{
+
+	repo,err:=git.PlainOpen(path)
+	scheckerr(err)
+
+	ref,err=repo.Head()
+	scheckerr(err)
+
+     it,err :=repo.Log(&git.LogOptions{From: ref.Hash})
+	 scheckerr(err)
+	 
+	 offset:=calcOffset()
+
+	 err=iterator.ForEach(func(c *object.Commit)error{
+      daysAgo :=countDaysSinceDate(c.Author.When)+offset
+
+	  if c.Author.Email !=email{
+		return nil
+	  }
+
+	  if daysAgo!= outOfRange{
+		commits[daysAgo]++
+	  }
+
+	  return nil
+	 })
+
+	 scheckerr(err)
+
+	 return commits
+}
+//
+func getBeginningOfDay(date time.Time) int{
+	days:=0
+	now := getBeginningOfDay(time.Now())
+	for date.Before(now){
+		date = date.Add(time.Hour*24)
+		days++
+		if days >daysInLastSixMonths{
+			return outOfRange
+		}
+	}
+	return days
+}
+
+
+//calculates the number of days until next sunday from current day
+func calcOffset()int{
+	//stores number of days until next sunday
+	var offset int
+	//stores current day of the week
+	weekday:= time.Now().Weekday()
+
+	switch weekday{
+	
+	case time.Sunday:
+		offset=7
+	case time.Monday:
+		offset=6
+	case time.Tuesday:
+		offset=5
+	case time.Wednesday:
+		offset=4
+	case time.Thursday:
+		offset=3
+	case time.Friday:
+		offset=2
+	case time.Saturday:
+		offset=1
+	}
+	return offset
+}
+
+
+//takes maps of commits stats and proceess it through series of helper function
+func printCommitStats(commits map[int]int){
+	keys:=sortMapIntoSlice(commits)
+	cols:=buildCols(keys,commits)
+	printCells(cols)
+}
+
+//retrun an array of integers sorted
+func sortMapIntoSlice(m map[int]int)[]int{
+	var keys []int
+	for k:= range m{
+		keys = append(keys,k)
+	}
+	sort.Ints(keys)
+	return keys
+}
+
+//
+func buildCols(keys []int,commits map[int]int)map[int]column{
+	cols:=make(map[int]column)
+	col:=column{}
+	for_,k:=range keys{
+		week:=int(k/7)
+		dayinweek:=k%7
+
+		if dayinweek==0{
+			col=column{}
+		}
+		col=append(col,commits[k])
+
+		if daysinweek==6{
+			cols[week]=col
+		}
+	}
+	return cols
+}
 func main() {
 
 	var folder string

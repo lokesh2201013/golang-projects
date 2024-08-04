@@ -1,0 +1,13 @@
+package p2p
+
+//peer is an interface that represents remote node
+type Peer interface{
+
+}
+
+
+//transport ins anything that handles comms b/w nodes in network
+//it can be in the form of tcp,udp,websokcets etc
+type Transport interface{
+
+}
